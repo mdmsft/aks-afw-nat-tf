@@ -31,11 +31,6 @@ variable "address_space" {
   default = "172.16.0.0/16"
 }
 
-variable "subnet_bits" {
-  type    = number
-  default = 8
-}
-
 variable "kubernetes_cluster_orchestrator_version" {
   type     = string
   nullable = true
@@ -195,6 +190,11 @@ variable "kubernetes_cluster_open_service_mesh_enabled" {
 }
 
 variable "kubernetes_cluster_public_fqdn_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "kubernetes_cluster_microsoft_defender_enabled" {
   type    = bool
   default = true
 }

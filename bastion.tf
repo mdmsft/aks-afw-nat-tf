@@ -4,7 +4,8 @@ resource "azurerm_public_ip" "bastion" {
   location            = azurerm_resource_group.main.location
   allocation_method   = "Static"
   sku                 = "Standard"
-  public_ip_prefix_id = azurerm_public_ip_prefix.main.id
+  ip_version          = "IPv4"
+  zones               = local.availability_zones
 }
 
 resource "azurerm_bastion_host" "main" {

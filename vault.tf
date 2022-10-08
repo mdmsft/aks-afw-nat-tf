@@ -1,22 +1,17 @@
 resource "azurerm_key_vault" "main" {
-  name                       = substr("kv-${var.project}-${var.environment}-${var.region}", 0, 24)
-  location                   = azurerm_resource_group.main.location
-  resource_group_name        = azurerm_resource_group.main.name
-  enable_rbac_authorization  = true
-  sku_name                   = "standard"
-  tenant_id                  = var.tenant_id
-  soft_delete_retention_days = var.key_vault_soft_delete_retention_days
+  name                          = substr("kv-${var.project}-${var.environment}-${var.region}", 0, 24)
+  location                      = azurerm_resource_group.main.location
+  resource_group_name           = azurerm_resource_group.main.name
+  enable_rbac_authorization     = true
+  public_network_access_enabled = false
+  sku_name                      = "standard"
+  tenant_id                     = var.tenant_id
+  soft_delete_retention_days    = var.key_vault_soft_delete_retention_days
 
   network_acls {
     bypass         = "AzureServices"
     default_action = "Deny"
   }
-}
-
-resource "azurerm_role_assignment" "key_vault_administrator" {
-  role_definition_name = "Key Vault Administrator"
-  scope                = azurerm_key_vault.main.id
-  principal_id         = data.azurerm_client_config.main.object_id
 }
 
 resource "azurerm_role_assignment" "key_vault_secrets_user" {
@@ -29,11 +24,11 @@ module "vault_endpoint" {
   source                         = "./modules/endpoint"
   resource_group_name            = azurerm_resource_group.main.name
   resource_suffix                = "${local.resource_suffix}-kv"
-  subnet_id                      = azurerm_subnet.endpoint.id
+  subnet_id                      = azurerm_subnet.private.id
   private_connection_resource_id = azurerm_key_vault.main.id
   subresource_name               = "vault"
   private_dns_zone_id            = azurerm_private_dns_zone.main["vault"].id
-  
+
   depends_on = [
     azurerm_key_vault.main
   ]

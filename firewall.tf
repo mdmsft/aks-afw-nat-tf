@@ -1,46 +1,3 @@
-locals {
-  firewall_diagnostic_logs = [
-    "AzureFirewallApplicationRule",
-    "AzureFirewallNetworkRule",
-    "AzureFirewallDnsProxy",
-    "AZFWNetworkRule",
-    "AZFWApplicationRule",
-    "AZFWNatRule",
-    "AZFWThreatIntel",
-    "AZFWIdpsSignature",
-    "AZFWDnsQuery",
-    "AZFWFqdnResolveFailure",
-    "AZFWApplicationRuleAggregation",
-    "AZFWNetworkRuleAggregation",
-    "AZFWNatRuleAggregation",
-  ]
-}
-
-resource "azurerm_public_ip" "firewall" {
-  name                = "pip-${local.resource_suffix}-afw"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  public_ip_prefix_id = azurerm_public_ip_prefix.main.id
-}
-
-resource "azurerm_firewall" "main" {
-  name                = "afw-${local.resource_suffix}"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  sku_name            = "AZFW_VNet"
-  sku_tier            = "Standard"
-  private_ip_ranges   = ["IANAPrivateRanges"]
-  firewall_policy_id  = azurerm_firewall_policy.main.id
-
-  ip_configuration {
-    name                 = "default"
-    subnet_id            = azurerm_subnet.firewall.id
-    public_ip_address_id = azurerm_public_ip.firewall.id
-  }
-}
-
 resource "azurerm_firewall_policy" "main" {
   name                     = "afwp-${local.resource_suffix}"
   location                 = azurerm_resource_group.main.location
@@ -62,7 +19,7 @@ resource "azurerm_firewall_policy" "main" {
 resource "azurerm_firewall_policy_rule_collection_group" "main" {
   name               = "default"
   firewall_policy_id = azurerm_firewall_policy.main.id
-  priority           = 100
+  priority           = 200
 
   network_rule_collection {
     name     = "net"
@@ -174,49 +131,6 @@ resource "azurerm_firewall_policy_rule_collection_group" "main" {
         type = "Https"
         port = 443
       }
-    }
-  }
-}
-
-resource "azurerm_firewall_policy_rule_collection_group" "kubernetes" {
-  name               = "kubernetes"
-  firewall_policy_id = azurerm_firewall_policy.main.id
-  priority           = 200
-
-  network_rule_collection {
-    name     = "net"
-    priority = 200
-    action   = "Allow"
-
-    rule {
-      name              = "control-plane-tcp"
-      protocols         = ["TCP"]
-      source_addresses  = ["*"]
-      destination_fqdns = [azurerm_kubernetes_cluster.main.fqdn]
-      destination_ports = ["443"]
-    }
-
-    rule {
-      name              = "control-plane-dns"
-      protocols         = ["UDP"]
-      source_addresses  = ["*"]
-      destination_fqdns = [azurerm_kubernetes_cluster.main.fqdn]
-      destination_ports = ["53"]
-    }
-  }
-}
-
-resource "azurerm_monitor_diagnostic_setting" "firewall" {
-  name                       = "Logs"
-  target_resource_id         = azurerm_firewall.main.id
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
-
-  dynamic "log" {
-    for_each = local.firewall_diagnostic_logs
-
-    content {
-      category = log.value
-      enabled  = true
     }
   }
 }
