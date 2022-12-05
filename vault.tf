@@ -24,7 +24,7 @@ module "vault_endpoint" {
   source                         = "./modules/endpoint"
   resource_group_name            = azurerm_resource_group.main.name
   resource_suffix                = "${local.resource_suffix}-kv"
-  subnet_id                      = azurerm_subnet.private.id
+  subnet_id                      = azurerm_subnet.endpoints.id
   private_connection_resource_id = azurerm_key_vault.main.id
   subresource_name               = "vault"
   private_dns_zone_id            = azurerm_private_dns_zone.main["vault"].id

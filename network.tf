@@ -12,27 +12,27 @@ resource "azurerm_subnet" "bastion" {
   address_prefixes     = [cidrsubnet(var.address_space, 8, 0)]
 }
 
-resource "azurerm_subnet" "loadbalancer" {
-  name                 = "snet-lb"
+resource "azurerm_subnet" "workload" {
+  name                 = "snet-vm"
   virtual_network_name = azurerm_virtual_network.main.name
   resource_group_name  = azurerm_resource_group.main.name
   address_prefixes     = [cidrsubnet(var.address_space, 8, 1)]
 }
 
-resource "azurerm_subnet" "jumphost" {
-  name                 = "snet-vm"
-  virtual_network_name = azurerm_virtual_network.main.name
-  resource_group_name  = azurerm_resource_group.main.name
-  address_prefixes     = [cidrsubnet(var.address_space, 8, 2)]
-}
-
-resource "azurerm_subnet" "private" {
+resource "azurerm_subnet" "services" {
   name                                          = "snet-pls"
   virtual_network_name                          = azurerm_virtual_network.main.name
   resource_group_name                           = azurerm_resource_group.main.name
-  address_prefixes                              = [cidrsubnet(var.address_space, 8, 3)]
-  private_endpoint_network_policies_enabled     = false
+  address_prefixes                              = [cidrsubnet(var.address_space, 8, 2)]
   private_link_service_network_policies_enabled = false
+}
+
+resource "azurerm_subnet" "endpoints" {
+  name                                      = "snet-pe"
+  virtual_network_name                      = azurerm_virtual_network.main.name
+  resource_group_name                       = azurerm_resource_group.main.name
+  address_prefixes                          = [cidrsubnet(var.address_space, 8, 3)]
+  private_endpoint_network_policies_enabled = false
 }
 
 resource "azurerm_subnet" "cluster" {
@@ -195,26 +195,15 @@ resource "azurerm_subnet_network_security_group_association" "cluster" {
   subnet_id                 = azurerm_subnet.cluster.id
 }
 
-resource "azurerm_network_security_group" "jumphost" {
+resource "azurerm_network_security_group" "workload" {
   name                = "nsg-${local.resource_suffix}-vm"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 }
 
-resource "azurerm_subnet_network_security_group_association" "jumphost" {
-  network_security_group_id = azurerm_network_security_group.jumphost.id
-  subnet_id                 = azurerm_subnet.jumphost.id
-}
-
-resource "azurerm_network_security_group" "loadbalancer" {
-  name                = "nsg-${local.resource_suffix}-lb"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-}
-
-resource "azurerm_subnet_network_security_group_association" "loadbalancer" {
-  network_security_group_id = azurerm_network_security_group.loadbalancer.id
-  subnet_id                 = azurerm_subnet.loadbalancer.id
+resource "azurerm_subnet_network_security_group_association" "workload" {
+  network_security_group_id = azurerm_network_security_group.workload.id
+  subnet_id                 = azurerm_subnet.workload.id
 }
 
 resource "azurerm_route_table" "main" {
@@ -264,36 +253,31 @@ resource "azurerm_private_dns_zone_virtual_network_link" "main" {
 }
 
 resource "azurerm_lb" "firewall" {
-  name                = "lbg-${local.resource_suffix}"
+  name                = "lbi-${local.resource_suffix}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
-  sku                 = "Gateway"
+  sku                 = "Standard"
   sku_tier            = "Regional"
 
   frontend_ip_configuration {
     name                          = "default"
     private_ip_address_allocation = "Dynamic"
     private_ip_address_version    = "IPv4"
-    # subnet_id                     = azurerm_subnet.loadbalancer.id
+    subnet_id                     = azurerm_subnet.services.id
   }
 }
 
 resource "azurerm_lb_backend_address_pool" "firewall" {
   name            = "default"
   loadbalancer_id = azurerm_lb.firewall.id
-
-  tunnel_interface {
-    identifier = 800
-    port       = 0
-    protocol   = "VXLAN"
-    type       = "Internal"
-  }
 }
 
 resource "azurerm_lb_backend_address_pool_address" "firewall" {
   for_each                = toset(local.availability_zones)
   name                    = each.key
   backend_address_pool_id = azurerm_lb_backend_address_pool.firewall.id
+  ip_address              = module.zone[each.key].private_endpoint_ip_address
+  virtual_network_id      = azurerm_virtual_network.main.id
 }
 
 resource "azurerm_lb_rule" "firewall" {
@@ -304,4 +288,19 @@ resource "azurerm_lb_rule" "firewall" {
   frontend_port                  = 0
   protocol                       = "All"
   frontend_ip_configuration_name = azurerm_lb.firewall.frontend_ip_configuration.0.name
+}
+
+resource "azurerm_private_link_service" "firewall" {
+  name                                        = "pls-${local.resource_suffix}-afw"
+  resource_group_name                         = azurerm_resource_group.main.name
+  location                                    = azurerm_resource_group.main.location
+  auto_approval_subscription_ids              = [data.azurerm_client_config.main.subscription_id]
+  visibility_subscription_ids                 = [data.azurerm_client_config.main.subscription_id]
+  load_balancer_frontend_ip_configuration_ids = [azurerm_lb.firewall.frontend_ip_configuration.0.id]
+
+  nat_ip_configuration {
+    name      = "primary"
+    primary   = true
+    subnet_id = azurerm_subnet.services.id
+  }
 }

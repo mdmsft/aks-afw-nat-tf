@@ -29,3 +29,7 @@ variable "log_analytics_workspace_daily_quota_gb" {
 variable "log_analytics_workspace_retention_in_days" {
   type = number
 }
+
+variable "private_link_service_id" {
+  type = string
+}

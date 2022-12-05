@@ -27,5 +27,6 @@ module "zone" {
   firewall_policy_id                        = azurerm_firewall_policy.main.id
   log_analytics_workspace_daily_quota_gb    = var.log_analytics_workspace_daily_quota_gb
   log_analytics_workspace_retention_in_days = var.log_analytics_workspace_retention_in_days
+  private_link_service_id                   = azurerm_private_link_service.firewall.id
 }
 

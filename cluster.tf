@@ -68,13 +68,13 @@ resource "azurerm_kubernetes_cluster" "main" {
     secret_rotation_interval = "1m"
   }
 
-  dynamic "microsoft_defender" {
-    for_each = var.kubernetes_cluster_microsoft_defender_enabled ? [] : [{}]
+  # dynamic "microsoft_defender" {
+  #   for_each = var.kubernetes_cluster_microsoft_defender_enabled ? [] : [{}]
 
-    content {
-      log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
-    }
-  }
+  #   content {
+  #     log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+  #   }
+  # }
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "main" {
@@ -123,7 +123,7 @@ module "cluster_endpoint" {
   count                          = var.kubernetes_cluster_public_fqdn_enabled ? 0 : 1
   resource_group_name            = azurerm_resource_group.main.name
   resource_suffix                = "${local.resource_suffix}-aks"
-  subnet_id                      = azurerm_subnet.private.id
+  subnet_id                      = azurerm_subnet.endpoints.id
   private_connection_resource_id = azurerm_kubernetes_cluster.main.id
   subresource_name               = "management"
   private_dns_zone_id            = azurerm_private_dns_zone.main["cluster"].id
